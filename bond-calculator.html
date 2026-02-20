@@ -674,12 +674,16 @@
 // --- SAM Data Layer ---
 const SAM_API_URL   = 'https://scoring.marinade.finance/api/v1/scores/sam?lastEpochs=1';
 const BONDS_API_URL = 'https://validator-bonds-api.marinade.finance/bonds?limit=9999';
-const CACHE_KEY = 'sam_cache_v6';
+const CACHE_KEY = 'sam_cache_v7';
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 let samData = null; // populated by fetchSamData()
 // On-chain commissions for the currently looked-up validator (null = not set / use bond comm)
 let currentOnchainComms = { inflationComm: null, mevComm: null };
+// Per-validator SAM values set when a validator is looked up (null = not set / use approximation)
+let currentValidatorRevShare = { expectedMaxEffBidPmpe: null, onchainDistributedPmpe: null };
+// Current Marinade SAM target stake for hysteresis (null = not available)
+let currentValidatorSamTarget = null;
 
 // fundedBonds: Set of vote accounts with effective_amount > 0 from the bonds API.
 // When provided, it is the source of truth for the ranking pool.
@@ -730,6 +734,10 @@ function processSamData(records, fundedBonds) {
         bidCpmpe: c.bidCpmpeInBondDec,          // null if no bond bid
         bondBalanceSol: (r.values || {}).bondBalanceSol || 0,
         maxStakeWanted: r.maxStakeWanted || 0,
+        samTargetSol: r.marinadeSamTargetSol || 0,
+        // Pre-computed SAM values (already capped by 2-pass auction simulation)
+        expectedMaxEffBidPmpe: (r.revShare || {}).expectedMaxEffBidPmpe || null,
+        onchainDistributedPmpe: (r.revShare || {}).onchainDistributedPmpe || null,
       };
     }
   }
@@ -854,7 +862,12 @@ function populateFields(data) {
   // Update network parameter inputs
   document.getElementById('inflationPmpe').value = data.networkParams.inflationPmpe;
   document.getElementById('mevPmpe').value = data.networkParams.mevPmpe;
-  document.getElementById('blockPmpe').value = data.networkParams.blockPmpe;
+  // Only overwrite blockPmpe if the API returned a non-zero value.
+  // The scoring API does not expose per-validator blockPmpe, so maxBlock stays 0.
+  // Zeroing this field collapses pmpeHeadroom to 0 and forces expectedMaxEffBidPmpe
+  // to its minimum (0.01), producing wildly inflated stake cap estimates.
+  if (data.networkParams.blockPmpe > 0)
+    document.getElementById('blockPmpe').value = data.networkParams.blockPmpe;
   document.getElementById('minBondEpochs').value = data.config.minBondEpochs;
   document.getElementById('idealBondEpochs').value = data.config.idealBondEpochs;
   document.getElementById('minBondBalanceSol').value = data.config.minBondBalanceSol;
@@ -943,26 +956,46 @@ function calculate() {
   const blockShare = blockPmpe * (1 - blockComm);
   const onchainDistributed = infShare + mevShare;
 
-  // For burn rate: use on-chain commissions to capture the commission subsidy.
-  // When a validator sets bond commissions lower than on-chain, they pay the
-  // difference from the bond. Using on-chain comms in the denominator correctly
-  // accounts for this: paidFromBond = winningPmpe - onchainDistributedForBurn.
+  // Use on-chain commissions for the bond cost formula (matching ds-sam constraints.ts).
+  // When bond comm < on-chain comm, the bond must also cover the commission subsidy.
   const burnInflComm = currentOnchainComms.inflationComm !== null ? currentOnchainComms.inflationComm : inflationComm;
   const burnMevComm  = currentOnchainComms.mevComm       !== null ? currentOnchainComms.mevComm       : mevComm;
   const onchainDistributedForBurn = inflationPmpe * (1 - burnInflComm) + mevPmpe * (1 - burnMevComm);
 
-  // Bond obligation = what must be paid from bond
+  // Bond obligation = bid + block share + commission subsidy
+  // Matches ds-sam bondObligationPmpe = bidPmpe + blockPmpe + bondsInflDiff + bondsMevDiff
   const bondObligation = bidCpmpe + blockShare;
+  const subsidyPmpe    = Math.max(0, onchainDistributed - onchainDistributedForBurn);
+  const bondObligationWithSubsidy = bondObligation + subsidyPmpe;
 
-  // expectedMaxEffBidPmpe (simplified: max of minExpected and bondObligation)
+  // onchainDistributedPmpe for bond sizing: use API value when a validator is looked up (it
+  // correctly accounts for InBond commission overrides vs. on-chain commissions). Fall back to
+  // the locally computed value (inflShare + mevShare using bond commissions).
+  const effectiveOnchainDistributed = currentValidatorRevShare.onchainDistributedPmpe != null
+    ? currentValidatorRevShare.onchainDistributedPmpe
+    : onchainDistributed;
+
+  // expectedMaxEffBidPmpe: replicates ds-sam's 2-pass auction cap (setExpectedMaxEffBidPmpes).
+  // Formula: max(minExpected, min(bondObligation, expectedMaxTotalPmpe - onchainDistributedPmpe))
+  // where expectedMaxTotalPmpe = rewardsBase + 1.2 * max(0, winningPmpe - rewardsBase).
+  // This caps validators with high bids (like Ec55Bot bid=0.476) at the actual headroom above
+  // on-chain distributed — typically ≈ blockPmpe for validators with 0% inflation/MEV commission.
   const minExpectedEffBidPmpe = 0.01;
-  const expectedMaxEffBidPmpe = Math.max(minExpectedEffBidPmpe, bondObligation);
+  const rewardsBase = inflationPmpe + mevPmpe + blockPmpe;
+  const auctionWinningPmpe = samData && samData.winningPmpe > 0 ? samData.winningPmpe : rewardsBase;
+  const auctionShift = 1.2 * Math.max(0, auctionWinningPmpe - rewardsBase);
+  const expectedMaxTotalPmpe = rewardsBase + auctionShift;
+  const pmpeHeadroom = Math.max(0, expectedMaxTotalPmpe - effectiveOnchainDistributed);
+  // Use != null (loose) so both null and undefined fall through to the computed fallback.
+  const expectedMaxEffBidPmpe = currentValidatorRevShare.expectedMaxEffBidPmpe != null
+    ? currentValidatorRevShare.expectedMaxEffBidPmpe
+    : Math.max(minExpectedEffBidPmpe, Math.min(bondObligation, pmpeHeadroom));
 
-  // Bond PMPE costs
+  // Bond PMPE costs — matches ds-sam bondStakeCapSam formula in constraints.ts
   const minBidReserve = minBondEpochs * expectedMaxEffBidPmpe;
   const idealBidReserve = idealBondEpochs * expectedMaxEffBidPmpe;
-  const minBondPmpe = onchainDistributed + expectedMaxEffBidPmpe + minBidReserve;
-  const idealBondPmpe = onchainDistributed + expectedMaxEffBidPmpe + idealBidReserve;
+  const minBondPmpe = effectiveOnchainDistributed + expectedMaxEffBidPmpe + minBidReserve;
+  const idealBondPmpe = effectiveOnchainDistributed + expectedMaxEffBidPmpe + idealBidReserve;
 
   let primaryVal, secondaryVal, ratio, healthText, healthClass;
   let burnStake, burnBond; // stake and bond used for burn rate calc
@@ -1013,7 +1046,7 @@ function calculate() {
       const netExpMaxEffBid = (samData && samData.expectedMaxEffBidPmpe > 0)
         ? samData.expectedMaxEffBidPmpe
         : expectedMaxEffBidPmpe;
-      const capBondPmpe = onchainDistributed + (idealBondEpochs + 1) * netExpMaxEffBid;
+      const capBondPmpe = effectiveOnchainDistributed + (idealBondEpochs + 1) * netExpMaxEffBid;
       const stakeCap = capBondPmpe > 0 ? cb / (capBondPmpe / 1000) : 0;
       const cappedByBond = stakeCap < maxStakeWanted;
       const bondNeededForTarget = maxStakeWanted * capBondPmpe / 1000;
@@ -1057,14 +1090,14 @@ function calculate() {
     burnBond = bondBal;
 
     primaryVal = idealLimit;
-    secondaryVal = minLimit;
+    secondaryVal = ratio;
 
-    document.getElementById('primaryLabel').textContent = 'Max Stake (Ideal Cap)';
-    document.getElementById('primarySub').textContent = `With ${idealBondEpochs}-epoch coverage`;
-    document.getElementById('secondaryLabel').textContent = 'Max Stake (Min Cap)';
-    document.getElementById('secondarySub').textContent = `With ${minBondEpochs}-epoch coverage`;
+    document.getElementById('primaryLabel').textContent = 'SAM Stake Cap';
+    document.getElementById('primarySub').textContent = `${idealBondEpochs}-epoch ideal coverage · matches PSR`;
+    document.getElementById('secondaryLabel').textContent = 'Bond Efficiency';
+    document.getElementById('secondarySub').textContent = `SOL staked per SOL bonded`;
     document.getElementById('primaryResult').textContent = fmt(idealLimit) + ' SOL';
-    document.getElementById('secondaryResult').textContent = fmt(minLimit) + ' SOL';
+    document.getElementById('secondaryResult').textContent = '1 : ' + fmt(ratio);
     document.getElementById('ratioResult').textContent = '1:' + fmt(ratio);
     document.getElementById('ratioSub').textContent = `1 SOL bond per ${fmt(ratio)} SOL stake`;
 
@@ -1087,11 +1120,8 @@ function calculate() {
   // --- Burn rate calculation ---
   // Winning validators (totalPmpe >= winningPmpe) pay effParticipatingBidPmpe = winningPmpe - onchainDistributed.
   // Below-threshold validators pay bondObligationPmpe = bidCpmpe + blockShare + commissionSubsidy.
-  // Commission subsidy = max(0, onchainDistributed_at_bond_comm - onchainDistributed_at_onchain_comm),
-  //   i.e. the extra staker yield the bond must cover when bond comm < on-chain comm.
   const userTotalPmpe = infShare + mevShare + blockShare + bidCpmpe;
-  const subsidyPmpe   = Math.max(0, onchainDistributed - onchainDistributedForBurn);
-  const bondObligationWithSubsidy = bondObligation + subsidyPmpe;
+  // subsidyPmpe, bondObligationWithSubsidy computed above
 
   let burnObligation, burnBasisLabel;
   if (samData && samData.winningPmpe > 0) {
@@ -1277,6 +1307,8 @@ function onVoteAccountInput() {
   if (addr.length === 0) {
     document.getElementById('lookupStatus').innerHTML = '';
     currentOnchainComms = { inflationComm: null, mevComm: null };
+    currentValidatorRevShare = { expectedMaxEffBidPmpe: null, onchainDistributedPmpe: null };
+    currentValidatorSamTarget = null;
     return;
   }
   // Auto-trigger once address looks like a full base58 pubkey (32–44 chars)
@@ -1316,20 +1348,29 @@ function lookupValidator() {
   document.getElementById('bidCpmpe').value     = v.bidCpmpe;
   if (v.maxStakeWanted > 0)
     document.getElementById('maxStakeWanted').value = v.maxStakeWanted;
-  if (v.bondBalanceSol > 0)
-    document.getElementById('currentBond').value = v.bondBalanceSol.toFixed(6);
+  if (v.bondBalanceSol > 0) {
+    document.getElementById('currentBond').value  = v.bondBalanceSol.toFixed(6);
+    document.getElementById('bondBalance').value  = v.bondBalanceSol.toFixed(6);
+  }
 
   // Store on-chain commissions so burn rate can account for commission subsidy
   currentOnchainComms = {
     inflationComm: v.inflationCommissionOnchain / 100,
     mevComm:       v.mevCommissionOnchain       / 100,
   };
+  // Store pre-computed SAM values (already capped by 2-pass auction simulation)
+  // Use ?? null to normalize undefined (from old cached data) to null
+  currentValidatorRevShare = {
+    expectedMaxEffBidPmpe: v.expectedMaxEffBidPmpe ?? null,
+    onchainDistributedPmpe: v.onchainDistributedPmpe ?? null,
+  };
+  // Store current Marinade SAM target stake for hysteresis calculation
+  currentValidatorSamTarget = v.samTargetSol > 0 ? v.samTargetSol : null;
 
   const bondDisplay = v.bondBalanceSol > 0 ? fmt(v.bondBalanceSol) + ' SOL bond' : 'no bond balance';
   setLookupMsg('success',
     `Fields auto-filled \u00B7 Bid: ${v.bidCpmpe} CPMPE \u00B7 Inflation: ${v.inflationCommission.toFixed(0)}% \u00B7 MEV: ${v.mevCommission.toFixed(0)}% \u00B7 Block: ${v.blockCommission.toFixed(0)}% \u00B7 ${bondDisplay}`);
 
-  if (mode !== 'bond') setMode('bond');
   calculate();
 }
 
