@@ -1,0 +1,1347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Marinade SAM Bond Calculator</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d28;
+    --border: #2a2d3a;
+    --text: #e1e4ec;
+    --muted: #8b8fa3;
+    --accent: #36d6a8;
+    --accent-dim: #2ba882;
+    --warning: #f5a623;
+    --red: #ef4444;
+    --green: #22c55e;
+    --yellow: #eab308;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 2rem;
+  }
+  .container { max-width: 860px; margin: 0 auto; }
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  .subtitle {
+    color: var(--muted);
+    font-size: 0.875rem;
+    margin-bottom: 2rem;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+  }
+  @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  .card h2 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+  .field { margin-bottom: 1rem; }
+  .field:last-child { margin-bottom: 0; }
+  label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-bottom: 0.3rem;
+  }
+  input[type="number"] {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="number"]:focus { border-color: var(--accent); }
+  .unit {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.15rem;
+  }
+  .results-card {
+    grid-column: 1 / -1;
+    background: linear-gradient(135deg, #1a2332, #1a1d28);
+    border: 1px solid var(--accent-dim);
+  }
+  .result-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1.25rem;
+  }
+  @media (max-width: 640px) { .result-grid { grid-template-columns: 1fr; } }
+  .result-item { text-align: center; }
+  .result-value {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--accent);
+    line-height: 1.2;
+  }
+  .result-label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.25rem;
+  }
+  .result-sub {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.15rem;
+    font-style: italic;
+  }
+  .divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.25rem 0;
+  }
+  .bond-health {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+  }
+  .bond-health.green { background: rgba(34,197,94,0.12); color: var(--green); }
+  .bond-health.yellow { background: rgba(234,179,8,0.12); color: var(--yellow); }
+  .bond-health.red { background: rgba(239,68,68,0.12); color: var(--red); }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .dot.green { background: var(--green); }
+  .dot.yellow { background: var(--yellow); }
+  .dot.red { background: var(--red); }
+  .formula-card {
+    grid-column: 1 / -1;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .formula-card code {
+    background: var(--bg);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+  .formula-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+  }
+  @media (max-width: 640px) { .formula-grid { grid-template-columns: 1fr; } }
+  .formula-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.3rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .formula-item span:last-child { color: var(--text); font-family: monospace; }
+  .toggle-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 0.4rem 0.75rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+    transition: all 0.2s;
+  }
+  .toggle-btn:hover { border-color: var(--accent); color: var(--text); }
+  .hidden { display: none; }
+  .mode-toggle {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .mode-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    padding: 0.6rem 1rem;
+    cursor: pointer;
+    font-size: 0.8rem;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+  .mode-btn.active {
+    background: var(--accent-dim);
+    color: #fff;
+  }
+  .mode-btn:hover:not(.active) { color: var(--text); }
+  .burn-card {
+    grid-column: 1 / -1;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .burn-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: 1rem;
+  }
+  @media (max-width: 640px) { .burn-grid { grid-template-columns: 1fr 1fr; } }
+  .burn-item { text-align: center; }
+  .burn-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--warning);
+    line-height: 1.2;
+  }
+  .burn-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.2rem;
+  }
+  .runway-bar-container {
+    margin-top: 1rem;
+    background: var(--bg);
+    border-radius: 6px;
+    height: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .runway-bar {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.3s, background 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #fff;
+    min-width: 60px;
+  }
+  .runway-bar.green { background: var(--green); }
+  .runway-bar.yellow { background: var(--yellow); color: #000; }
+  .runway-bar.red { background: var(--red); }
+  .runway-label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 0.35rem;
+  }
+  /* Status bar */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 1.5rem;
+    padding: 0.5rem 0.75rem;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  .status-bar .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .status-bar .status-dot.live { background: var(--green); }
+  .status-bar .status-dot.warn { background: var(--yellow); }
+  .status-bar .status-dot.err { background: var(--red); }
+  .status-bar .refresh-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.7rem;
+    margin-left: auto;
+    transition: all 0.2s;
+  }
+  .status-bar .refresh-btn:hover { border-color: var(--accent); color: var(--text); }
+  .status-bar.warn-bar { border-color: rgba(234,179,8,0.3); background: rgba(234,179,8,0.05); }
+  /* Validator lookup */
+  .lookup-card {
+    margin-bottom: 1.5rem;
+  }
+  .lookup-row {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+  }
+  .lookup-row input[type="text"] {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    font-family: monospace;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .lookup-row input[type="text"]:focus { border-color: var(--accent); }
+  .lookup-btn {
+    background: var(--accent-dim);
+    border: none;
+    color: #fff;
+    padding: 0.5rem 1.1rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .lookup-btn:hover { background: var(--accent); }
+  .lookup-msg {
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+  .lookup-success {
+    background: rgba(34,197,94,0.1);
+    color: var(--green);
+    border: 1px solid rgba(34,197,94,0.2);
+  }
+  .lookup-info {
+    background: rgba(139,143,163,0.08);
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .lookup-warn {
+    background: rgba(234,179,8,0.1);
+    color: var(--yellow);
+    border: 1px solid rgba(234,179,8,0.2);
+  }
+  /* Loading spinner */
+  .loading-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+    margin-right: 0.4rem;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* Ranking card */
+  .ranking-card {
+    grid-column: 1 / -1;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .ranking-summary {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  @media (max-width: 640px) { .ranking-summary { grid-template-columns: 1fr; } }
+  .ranking-metric { text-align: center; }
+  .ranking-metric .value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .ranking-metric .label {
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-top: 0.15rem;
+  }
+  .rank-bar-container {
+    background: var(--bg);
+    border-radius: 6px;
+    height: 28px;
+    position: relative;
+    overflow: hidden;
+    margin-bottom: 0.75rem;
+  }
+  .rank-bar {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.3s, background 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #fff;
+    min-width: 60px;
+  }
+  .rank-bar.green { background: var(--green); }
+  .rank-bar.yellow { background: var(--yellow); color: #000; }
+  .rank-bar.red { background: var(--red); }
+  .ranking-verdict {
+    padding: 0.6rem 0.75rem;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    line-height: 1.5;
+  }
+  .ranking-verdict.above { background: rgba(34,197,94,0.1); color: var(--green); }
+  .ranking-verdict.close { background: rgba(234,179,8,0.1); color: var(--yellow); }
+  .ranking-verdict.below { background: rgba(239,68,68,0.1); color: var(--red); }
+  .ranking-footer {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-top: 0.75rem;
+    text-align: center;
+  }
+  /* Stake cap card */
+  .stake-cap-card {
+    grid-column: 1 / -1;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .stake-cap-detail {
+    font-size: 0.8rem;
+    color: var(--muted);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  @media (max-width: 640px) { .stake-cap-detail { grid-template-columns: 1fr; } }
+  .stake-cap-detail .detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stake-cap-detail .detail-item span:last-child { color: var(--text); font-family: monospace; }
+  .auto-tag {
+    font-size: 0.65rem;
+    color: var(--accent);
+    font-weight: 500;
+    margin-left: 0.5rem;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Marinade SAM Bond Calculator</h1>
+  <p class="subtitle" id="subtitle">Estimate the bond required for a target stake, or the max stake from a given bond.</p>
+
+  <!-- Validator Lookup -->
+  <div class="card lookup-card">
+    <h2>Validator Lookup <span style="font-size:0.7rem;text-transform:none;letter-spacing:0;color:var(--muted);font-weight:400;">(auto-fill from bond)</span></h2>
+    <div class="lookup-row">
+      <input type="text" id="voteAccount"
+             placeholder="Paste vote account address…"
+             oninput="onVoteAccountInput()"
+             onkeydown="if(event.key==='Enter')lookupValidator()">
+      <button class="lookup-btn" onclick="lookupValidator()">Look up</button>
+    </div>
+    <div id="lookupStatus"></div>
+  </div>
+
+  <!-- Data Status Bar (hidden until data loads) -->
+  <div class="status-bar hidden" id="statusBar">
+    <span class="status-dot" id="statusDot"></span>
+    <span id="statusText">Loading...</span>
+    <button class="refresh-btn" onclick="refreshData()">Refresh</button>
+  </div>
+
+  <div class="mode-toggle">
+    <button class="mode-btn active" onclick="setMode('bond')">Bond needed for stake</button>
+    <button class="mode-btn" onclick="setMode('stake')">Max stake from bond</button>
+  </div>
+
+  <div class="grid">
+    <!-- Validator Settings -->
+    <div class="card">
+      <h2>Validator Settings</h2>
+      <div class="field">
+        <label>Inflation Commission</label>
+        <input type="number" id="inflationComm" value="5" min="0" max="100" step="0.1" oninput="calculate()">
+        <div class="unit">% (e.g., 5 = 5%)</div>
+      </div>
+      <div class="field">
+        <label>MEV Commission</label>
+        <input type="number" id="mevComm" value="5" min="0" max="100" step="0.1" oninput="calculate()">
+        <div class="unit">% (e.g., 5 = 5%)</div>
+      </div>
+      <div class="field">
+        <label>Block Rewards Commission</label>
+        <input type="number" id="blockComm" value="5" min="0" max="100" step="0.1" oninput="calculate()">
+        <div class="unit">% (e.g., 5 = 5%)</div>
+      </div>
+      <div class="field">
+        <label>Static Bid (CPMPE)</label>
+        <input type="number" id="bidCpmpe" value="0.01" min="0" step="0.001" oninput="calculate()">
+        <div class="unit">Cost per mille per epoch (in SOL terms)</div>
+      </div>
+      <div class="field" id="stakeField">
+        <label>Max Stake Wanted</label>
+        <input type="number" id="maxStakeWanted" value="100000" min="0" step="1000" oninput="calculate()">
+        <div class="unit">SOL</div>
+      </div>
+      <div class="field" id="currentBondField">
+        <label>Current Bond Balance <span style="color:var(--muted);font-weight:normal;">(optional)</span></label>
+        <input type="number" id="currentBond" value="" min="0" step="1" placeholder="Enter to check runway" oninput="calculate()">
+        <div class="unit">SOL &mdash; leave empty to use ideal bond</div>
+      </div>
+      <div class="field hidden" id="bondField">
+        <label>Bond Balance</label>
+        <input type="number" id="bondBalance" value="100" min="0" step="1" oninput="calculate()">
+        <div class="unit">SOL</div>
+      </div>
+    </div>
+
+    <!-- Network Parameters -->
+    <div class="card">
+      <h2>Network Parameters <span class="auto-tag hidden" id="autoTag">(auto-fetched)</span> <button class="toggle-btn" onclick="toggleAdvanced()">Edit</button></h2>
+      <p style="font-size:0.75rem; color:var(--muted); margin-bottom:0.75rem;" id="networkParamsNote">Pre-filled with current mainnet values. Adjust if needed.</p>
+      <div id="advancedParams">
+        <div class="field">
+          <label>Inflation PMPE</label>
+          <input type="number" id="inflationPmpe" value="0.3241" min="0" step="0.001" oninput="calculate()" disabled>
+          <div class="unit">Network inflation rewards per 1,000 SOL/epoch</div>
+        </div>
+        <div class="field">
+          <label>MEV PMPE</label>
+          <input type="number" id="mevPmpe" value="0.0139" min="0" step="0.001" oninput="calculate()" disabled>
+          <div class="unit">Network MEV rewards per 1,000 SOL/epoch</div>
+        </div>
+        <div class="field">
+          <label>Block PMPE</label>
+          <input type="number" id="blockPmpe" value="0.0370" min="0" step="0.001" oninput="calculate()" disabled>
+          <div class="unit">Network block rewards per 1,000 SOL/epoch</div>
+        </div>
+        <hr class="divider">
+        <div class="field">
+          <label>Min Bond Epochs</label>
+          <input type="number" id="minBondEpochs" value="4" min="0" step="1" oninput="calculate()" disabled>
+          <div class="unit">Minimum epochs of bid coverage required</div>
+        </div>
+        <div class="field">
+          <label>Ideal Bond Epochs</label>
+          <input type="number" id="idealBondEpochs" value="12" min="0" step="1" oninput="calculate()" disabled>
+          <div class="unit">Ideal epochs of bid coverage (green status)</div>
+        </div>
+        <div class="field">
+          <label>Min Bond Balance</label>
+          <input type="number" id="minBondBalanceSol" value="7" min="0" step="1" oninput="calculate()" disabled>
+          <div class="unit">Minimum SOL in bond to receive any stake</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="card results-card">
+      <h2>Results</h2>
+      <div class="result-grid">
+        <div class="result-item">
+          <div class="result-value" id="primaryResult">--</div>
+          <div class="result-label" id="primaryLabel">Bond Needed (Ideal)</div>
+          <div class="result-sub" id="primarySub">Covers 12 epochs of bids</div>
+        </div>
+        <div class="result-item">
+          <div class="result-value" id="secondaryResult">--</div>
+          <div class="result-label" id="secondaryLabel">Bond Needed (Min)</div>
+          <div class="result-sub" id="secondarySub">Covers 4 epochs of bids</div>
+        </div>
+        <div class="result-item">
+          <div class="result-value" id="ratioResult">--</div>
+          <div class="result-label">Bond-to-Stake Ratio</div>
+          <div class="result-sub" id="ratioSub">1 SOL of bond per X SOL stake</div>
+        </div>
+      </div>
+      <hr class="divider">
+      <div id="bondHealthContainer" style="max-width:400px; margin:0 auto;">
+        <div class="bond-health green" id="bondHealth">
+          <span class="dot green"></span>
+          <span id="bondHealthText">--</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bond Stake Cap (hidden until current bond is entered in bond mode) -->
+    <div class="card stake-cap-card hidden" id="stakeCapCard">
+      <h2>Bond Stake Cap</h2>
+      <div style="text-align:center;">
+        <div class="result-value" id="stakeCapResult" style="font-size:2rem;">--</div>
+        <div class="result-label" id="stakeCapLabel">Max stake Marinade will allocate</div>
+        <div class="result-sub" id="stakeCapSub">Based on your current bond balance</div>
+      </div>
+      <hr class="divider">
+      <div class="stake-cap-detail" id="stakeCapDetail"></div>
+    </div>
+
+    <!-- Bid Ranking (hidden until SAM data loads) -->
+    <div class="card ranking-card hidden" id="rankingCard">
+      <h2>Your Bid Ranking</h2>
+      <div class="ranking-summary">
+        <div class="ranking-metric">
+          <div class="value" id="userTotalPmpe">--</div>
+          <div class="label">Your Total PMPE</div>
+        </div>
+        <div class="ranking-metric">
+          <div class="value" id="winningPmpeDisplay">--</div>
+          <div class="label">Winning PMPE Threshold</div>
+        </div>
+      </div>
+      <div class="rank-bar-container">
+        <div class="rank-bar green" id="rankBar" style="width:50%">
+          <span id="rankBarText">--</span>
+        </div>
+      </div>
+      <div class="ranking-verdict above" id="rankingVerdict">
+        <span id="rankingVerdictText">--</span>
+      </div>
+      <div class="ranking-footer" id="rankingFooter">--</div>
+    </div>
+
+    <!-- Burn Rate -->
+    <div class="card burn-card">
+      <h2>Burn Rate <span style="font-size:0.7rem; text-transform:none; letter-spacing:0; color:var(--text); font-weight:400;" id="burnBasis"></span></h2>
+      <div class="burn-grid">
+        <div class="burn-item">
+          <div class="burn-value" id="burnPerEpoch">--</div>
+          <div class="burn-label">SOL / epoch</div>
+        </div>
+        <div class="burn-item">
+          <div class="burn-value" id="burnPerMonth">--</div>
+          <div class="burn-label">SOL / month (~15 epochs)</div>
+        </div>
+        <div class="burn-item">
+          <div class="burn-value" id="burnPerYear">--</div>
+          <div class="burn-label">SOL / year (~182 epochs)</div>
+        </div>
+        <div class="burn-item">
+          <div class="burn-value" id="runwayEpochs">--</div>
+          <div class="burn-label" id="runwayLabel">Runway (epochs)</div>
+        </div>
+      </div>
+      <div class="runway-bar-container">
+        <div class="runway-bar green" id="runwayBar" style="width:100%">
+          <span id="runwayBarText">--</span>
+        </div>
+      </div>
+      <div class="runway-label" id="runwayDetail">--</div>
+    </div>
+
+    <!-- Formula Breakdown -->
+    <div class="card formula-card">
+      <h2>Formula Breakdown</h2>
+      <p>The bond must cover on-chain reward obligations plus multiple epochs of bid payments:</p>
+      <p style="margin-top:0.5rem;"><code>bondCostPmpe = onchainDistributedPmpe + (bondEpochs + 1) x expectedMaxEffBidPmpe</code></p>
+      <p style="margin-top:0.25rem;"><code>bondNeeded = stakeWanted x bondCostPmpe / 1000</code></p>
+      <p style="margin-top:0.25rem;"><code>burnPerEpoch = stake × paidFromBondPmpe / 1000</code></p>
+      <p style="margin-top:0.25rem;"><code>paidFromBondPmpe = winningPmpe − onchainDistributedPmpe</code>&ensp;<span style="color:var(--muted);font-size:0.85em;">(winning validators: totalPmpe ≥ winningPmpe)</span></p>
+      <p style="margin-top:0.25rem;"><code>paidFromBondPmpe = bidCpmpe + blockSharePmpe + commissionSubsidy</code>&ensp;<span style="color:var(--muted);font-size:0.85em;">(below-threshold: totalPmpe &lt; winningPmpe)</span></p>
+      <p style="margin-top:0.25rem;font-size:0.8rem;color:var(--muted);">On-chain commissions are used to include commission subsidies (bond comm &lt; on-chain comm). The formula uses expected network-average PMPE values; actual settlement uses real epoch rewards, so results will differ by stochastic variance.</p>
+      <div class="formula-grid" id="formulaGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// --- SAM Data Layer ---
+const SAM_API_URL   = 'https://scoring.marinade.finance/api/v1/scores/sam?lastEpochs=1';
+const BONDS_API_URL = 'https://validator-bonds-api.marinade.finance/bonds?limit=9999';
+const CACHE_KEY = 'sam_cache_v6';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+let samData = null; // populated by fetchSamData()
+// On-chain commissions for the currently looked-up validator (null = not set / use bond comm)
+let currentOnchainComms = { inflationComm: null, mevComm: null };
+
+// fundedBonds: Set of vote accounts with effective_amount > 0 from the bonds API.
+// When provided, it is the source of truth for the ranking pool.
+// Falls back to bondBalanceSol > 0 from scoring data if the bonds API call failed.
+function processSamData(records, fundedBonds) {
+  if (!records || records.length === 0) return null;
+
+  // Network params: MAX of each PMPE across all validators (max occurs at 0% commission)
+  let maxInflation = 0, maxMev = 0, maxBlock = 0;
+  const rankings = [];
+  const validatorMap = {};
+
+  for (const r of records) {
+    const rs = r.revShare || {};
+    if (rs.inflationPmpe > maxInflation) maxInflation = rs.inflationPmpe;
+    if (rs.mevPmpe > maxMev) maxMev = rs.mevPmpe;
+    if (rs.blockPmpe > maxBlock) maxBlock = rs.blockPmpe;
+
+    // Ranking pool: prefer bonds API funded set; fall back to scoring bondBalanceSol > 0
+    const inPool = fundedBonds
+      ? fundedBonds.has(r.voteAccount)
+      : ((r.values || {}).bondBalanceSol || 0) > 0;
+    if (inPool) {
+      rankings.push({
+        totalPmpe: rs.totalPmpe || 0,
+        bidPmpe: rs.bidPmpe || 0,
+        samTarget: r.marinadeSamTargetSol || 0,
+      });
+    }
+
+    // Store per-validator data for the lookup feature
+    if (r.voteAccount) {
+      const c = (r.values || {}).commissions || {};
+      // Prefer bond-overridden commissions when set; fall back to on-chain values
+      const effInf   = c.inflationCommissionInBondDec   != null ? c.inflationCommissionInBondDec   : (c.inflationCommissionDec   || 0);
+      const effMev   = c.mevCommissionInBondDec          != null ? c.mevCommissionInBondDec          : (c.mevCommissionDec          || 0);
+      const effBlock = c.blockRewardsCommissionInBondDec != null ? c.blockRewardsCommissionInBondDec : (c.blockRewardsCommissionDec || 0);
+      // On-chain commission (before bond override). inflationCommissionOnchainDec is present
+      // when there is an InBond override; otherwise on-chain === effective.
+      const onchainInf = c.inflationCommissionOnchainDec != null ? c.inflationCommissionOnchainDec : effInf;
+      const onchainMev = c.mevCommissionOnchainDec        != null ? c.mevCommissionOnchainDec        : effMev;
+      validatorMap[r.voteAccount] = {
+        inflationCommission: effInf   * 100,
+        mevCommission:       effMev   * 100,
+        blockCommission:     effBlock * 100,
+        inflationCommissionOnchain: onchainInf * 100,
+        mevCommissionOnchain:       onchainMev * 100,
+        bidCpmpe: c.bidCpmpeInBondDec,          // null if no bond bid
+        bondBalanceSol: (r.values || {}).bondBalanceSol || 0,
+        maxStakeWanted: r.maxStakeWanted || 0,
+      };
+    }
+  }
+
+  // Sort by totalPmpe descending
+  rankings.sort((a, b) => b.totalPmpe - a.totalPmpe);
+
+  // True pool size: funded bonds from bonds API (includes those not in SAM scoring)
+  // Bonds not in SAM scoring have no totalPmpe and always rank at the bottom,
+  // so they don't affect the rank value, only the denominator display.
+  const totalFundedBonds = fundedBonds ? fundedBonds.size : rankings.length;
+
+  // Winning PMPE: minimum totalPmpe among validators that receive stake
+  const withStake = rankings.filter(r => r.samTarget > 0);
+  const winningPmpe = withStake.length > 0 ? withStake[withStake.length - 1].totalPmpe : 0;
+
+  // Scoring config from first record's metadata
+  const meta = records[0].metadata || {};
+  const sc = meta.scoringConfig || {};
+
+  return {
+    timestamp: Date.now(),
+    epoch: records[0].epoch || 0,
+    networkParams: {
+      inflationPmpe: Math.round(maxInflation * 10000) / 10000,
+      mevPmpe: Math.round(maxMev * 10000) / 10000,
+      blockPmpe: Math.round(maxBlock * 10000) / 10000,
+    },
+    config: {
+      minBondEpochs: sc.minBondEpochs || 4,
+      idealBondEpochs: sc.idealBondEpochs || 12,
+      minBondBalanceSol: sc.minBondBalanceSol || 7,
+    },
+    winningPmpe: Math.round(winningPmpe * 10000) / 10000,
+    rawNetworkParams: { inflationPmpe: maxInflation, mevPmpe: maxMev, blockPmpe: maxBlock },
+    expectedMaxEffBidPmpe: (records[0].revShare || {}).expectedMaxEffBidPmpe || 0,
+    samTvlSol: (meta.tvl && meta.tvl.marinadeSamTvlSol) || 0,
+    validatorsWithStake: withStake.length,
+    totalValidators: records.length,
+    totalFundedBonds: totalFundedBonds,
+    rankings: rankings,
+    validatorMap: validatorMap,
+  };
+}
+
+async function fetchSamData(forceRefresh = false) {
+  // Check localStorage cache
+  if (!forceRefresh) {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < CACHE_TTL) {
+          return parsed;
+        }
+      }
+    } catch (e) { /* ignore cache errors */ }
+  }
+
+  // Fetch SAM scores and bonds API in parallel
+  const [samResponse, bondsResponse] = await Promise.all([
+    fetch(SAM_API_URL),
+    fetch(BONDS_API_URL).catch(() => null), // bonds API failure is non-fatal
+  ]);
+
+  if (!samResponse.ok) throw new Error(`SAM API returned ${samResponse.status}`);
+  const samJson = await samResponse.json();
+
+  // Build funded-bonds set from bonds API (effective_amount > 0 = bond has funds available)
+  let fundedBonds = null;
+  if (bondsResponse && bondsResponse.ok) {
+    const bondsJson = await bondsResponse.json();
+    const bonds = bondsJson.bonds || bondsJson;
+    fundedBonds = new Set(
+      bonds.filter(b => (b.effective_amount || 0) > 0).map(b => b.vote_account)
+    );
+  }
+
+  const records = samJson.records || samJson;
+  const processed = processSamData(Array.isArray(records) ? records : [], fundedBonds);
+  if (!processed) throw new Error('No records returned');
+
+  // Cache in localStorage
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(processed));
+  } catch (e) { /* storage full, ignore */ }
+
+  return processed;
+}
+
+function updateStatusBar(state, data) {
+  const bar = document.getElementById('statusBar');
+  const dot = document.getElementById('statusDot');
+  const text = document.getElementById('statusText');
+  bar.classList.remove('hidden', 'warn-bar');
+
+  if (state === 'loading') {
+    dot.className = 'status-dot';
+    text.innerHTML = '<span class="loading-spinner"></span> Loading SAM data...';
+  } else if (state === 'success') {
+    dot.className = 'status-dot live';
+    const ago = timeAgo(data.timestamp);
+    text.textContent = `Epoch ${data.epoch} \u00B7 ${ago} \u00B7 ${data.totalValidators} validators`;
+  } else if (state === 'error') {
+    dot.className = 'status-dot warn';
+    bar.classList.add('warn-bar');
+    text.textContent = 'Using default values \u00B7 Fetch failed';
+  }
+}
+
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return mins + 'm ago';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + 'h ago';
+  return Math.floor(hours / 24) + 'd ago';
+}
+
+function populateFields(data) {
+  // Update network parameter inputs
+  document.getElementById('inflationPmpe').value = data.networkParams.inflationPmpe;
+  document.getElementById('mevPmpe').value = data.networkParams.mevPmpe;
+  document.getElementById('blockPmpe').value = data.networkParams.blockPmpe;
+  document.getElementById('minBondEpochs').value = data.config.minBondEpochs;
+  document.getElementById('idealBondEpochs').value = data.config.idealBondEpochs;
+  document.getElementById('minBondBalanceSol').value = data.config.minBondBalanceSol;
+
+  // Show auto-fetched tag and update note
+  document.getElementById('autoTag').classList.remove('hidden');
+  document.getElementById('networkParamsNote').textContent =
+    `Last updated: Epoch ${data.epoch}. Adjust if needed.`;
+
+  // Show ranking card
+  document.getElementById('rankingCard').classList.remove('hidden');
+}
+
+async function initData() {
+  updateStatusBar('loading');
+  try {
+    samData = await fetchSamData();
+    populateFields(samData);
+    updateStatusBar('success', samData);
+    calculate();
+  } catch (e) {
+    console.warn('SAM data fetch failed:', e);
+    updateStatusBar('error');
+    // Calculator continues with hardcoded defaults
+  }
+}
+
+async function refreshData() {
+  updateStatusBar('loading');
+  try {
+    samData = await fetchSamData(true);
+    populateFields(samData);
+    updateStatusBar('success', samData);
+    calculate();
+  } catch (e) {
+    console.warn('SAM data refresh failed:', e);
+    updateStatusBar('error');
+  }
+}
+
+let mode = 'bond'; // 'bond' = calculate bond needed, 'stake' = calculate max stake
+
+function setMode(m) {
+  mode = m;
+  document.querySelectorAll('.mode-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', (i === 0 && m === 'bond') || (i === 1 && m === 'stake'));
+  });
+  document.getElementById('stakeField').classList.toggle('hidden', m === 'stake');
+  document.getElementById('currentBondField').classList.toggle('hidden', m === 'stake');
+  document.getElementById('bondField').classList.toggle('hidden', m === 'bond');
+  calculate();
+}
+
+function toggleAdvanced() {
+  const params = document.getElementById('advancedParams');
+  const inputs = params.querySelectorAll('input');
+  const isDisabled = inputs[0].disabled;
+  inputs.forEach(i => i.disabled = !isDisabled);
+}
+
+function val(id) { return parseFloat(document.getElementById(id).value) || 0; }
+
+function fmt(n) {
+  if (n >= 1e6) return (n / 1e6).toFixed(2) + 'M';
+  if (n >= 1e4) return (n / 1e3).toFixed(1) + 'K';
+  if (n >= 100) return n.toFixed(1);
+  if (n >= 1) return n.toFixed(2);
+  return n.toFixed(4);
+}
+
+function calculate() {
+  const inflationComm = val('inflationComm') / 100;
+  const mevComm = val('mevComm') / 100;
+  const blockComm = val('blockComm') / 100;
+  const bidCpmpe = val('bidCpmpe');
+  const inflationPmpe = val('inflationPmpe');
+  const mevPmpe = val('mevPmpe');
+  const blockPmpe = val('blockPmpe');
+  const minBondEpochs = val('minBondEpochs');
+  const idealBondEpochs = val('idealBondEpochs');
+  const minBondBalanceSol = val('minBondBalanceSol');
+
+  // Revenue share (what stakers receive)
+  const infShare = inflationPmpe * (1 - inflationComm);
+  const mevShare = mevPmpe * (1 - mevComm);
+  const blockShare = blockPmpe * (1 - blockComm);
+  const onchainDistributed = infShare + mevShare;
+
+  // For burn rate: use on-chain commissions to capture the commission subsidy.
+  // When a validator sets bond commissions lower than on-chain, they pay the
+  // difference from the bond. Using on-chain comms in the denominator correctly
+  // accounts for this: paidFromBond = winningPmpe - onchainDistributedForBurn.
+  const burnInflComm = currentOnchainComms.inflationComm !== null ? currentOnchainComms.inflationComm : inflationComm;
+  const burnMevComm  = currentOnchainComms.mevComm       !== null ? currentOnchainComms.mevComm       : mevComm;
+  const onchainDistributedForBurn = inflationPmpe * (1 - burnInflComm) + mevPmpe * (1 - burnMevComm);
+
+  // Bond obligation = what must be paid from bond
+  const bondObligation = bidCpmpe + blockShare;
+
+  // expectedMaxEffBidPmpe (simplified: max of minExpected and bondObligation)
+  const minExpectedEffBidPmpe = 0.01;
+  const expectedMaxEffBidPmpe = Math.max(minExpectedEffBidPmpe, bondObligation);
+
+  // Bond PMPE costs
+  const minBidReserve = minBondEpochs * expectedMaxEffBidPmpe;
+  const idealBidReserve = idealBondEpochs * expectedMaxEffBidPmpe;
+  const minBondPmpe = onchainDistributed + expectedMaxEffBidPmpe + minBidReserve;
+  const idealBondPmpe = onchainDistributed + expectedMaxEffBidPmpe + idealBidReserve;
+
+  let primaryVal, secondaryVal, ratio, healthText, healthClass;
+  let burnStake, burnBond; // stake and bond used for burn rate calc
+
+  if (mode === 'bond') {
+    const stakeWanted = val('maxStakeWanted');
+    const bondIdeal = stakeWanted * (idealBondPmpe / 1000);
+    const bondMin = stakeWanted * (minBondPmpe / 1000);
+    ratio = stakeWanted > 0 ? stakeWanted / bondIdeal : 0;
+
+    // Burn rate uses the stake wanted and current bond (or ideal if not provided)
+    const currentBondInput = document.getElementById('currentBond').value;
+    burnStake = stakeWanted;
+    burnBond = currentBondInput ? parseFloat(currentBondInput) : bondIdeal;
+
+    primaryVal = bondIdeal;
+    secondaryVal = bondMin;
+
+    document.getElementById('primaryLabel').textContent = 'Bond Needed (Ideal)';
+    document.getElementById('primarySub').textContent = `Covers ${idealBondEpochs} epochs of bids`;
+    document.getElementById('secondaryLabel').textContent = 'Bond Needed (Min)';
+    document.getElementById('secondarySub').textContent = `Covers ${minBondEpochs} epochs of bids`;
+    document.getElementById('primaryResult').textContent = fmt(bondIdeal) + ' SOL';
+    document.getElementById('secondaryResult').textContent = fmt(bondMin) + ' SOL';
+    document.getElementById('ratioResult').textContent = '1:' + fmt(ratio);
+    document.getElementById('ratioSub').textContent = `1 SOL bond per ${fmt(ratio)} SOL stake`;
+
+    // Bond health based on current bond if provided
+    const maxStakeWanted = stakeWanted;
+    if (currentBondInput) {
+      const cb = parseFloat(currentBondInput);
+      if (cb >= bondIdeal) {
+        healthText = `Current bond (${fmt(cb)} SOL) covers ${idealBondEpochs}+ epochs`;
+        healthClass = 'green';
+      } else if (cb >= bondMin) {
+        healthText = `Current bond (${fmt(cb)} SOL) covers ${minBondEpochs}-${idealBondEpochs} epochs`;
+        healthClass = 'yellow';
+      } else if (cb >= minBondBalanceSol) {
+        healthText = `Current bond (${fmt(cb)} SOL) below minimum coverage for ${fmt(maxStakeWanted)} SOL stake`;
+        healthClass = 'red';
+      } else {
+        healthText = `Current bond (${fmt(cb)} SOL) below min balance (${minBondBalanceSol} SOL)`;
+        healthClass = 'red';
+      }
+
+      // Bond Stake Cap — use Marinade's ds-sam formula with idealBondPmpe
+      // The cap uses the network-wide expectedMaxEffBidPmpe (not the validator's own bid)
+      const netExpMaxEffBid = (samData && samData.expectedMaxEffBidPmpe > 0)
+        ? samData.expectedMaxEffBidPmpe
+        : expectedMaxEffBidPmpe;
+      const capBondPmpe = onchainDistributed + (idealBondEpochs + 1) * netExpMaxEffBid;
+      const stakeCap = capBondPmpe > 0 ? cb / (capBondPmpe / 1000) : 0;
+      const cappedByBond = stakeCap < maxStakeWanted;
+      const bondNeededForTarget = maxStakeWanted * capBondPmpe / 1000;
+
+      document.getElementById('stakeCapCard').classList.remove('hidden');
+      document.getElementById('stakeCapResult').textContent = '~' + fmt(stakeCap) + ' SOL';
+      document.getElementById('stakeCapResult').style.color =
+        cappedByBond ? 'var(--warning)' : 'var(--accent)';
+      document.getElementById('stakeCapLabel').textContent =
+        cappedByBond
+          ? `Bond is the constraint — limits stake below ${fmt(maxStakeWanted)} SOL target`
+          : 'Bond supports your full stake target';
+      document.getElementById('stakeCapSub').textContent =
+        `From ${fmt(cb)} SOL bond · Using ${samData ? 'network' : 'local'} expected bid`;
+
+      // Detail breakdown
+      document.getElementById('stakeCapDetail').innerHTML = [
+        ['Current bond', fmt(cb) + ' SOL'],
+        ['Bond cost PMPE', capBondPmpe.toFixed(4) + ' PMPE'],
+        ['Network exp. max eff bid', netExpMaxEffBid.toFixed(6) + ' PMPE'],
+        ['Max stake wanted', fmt(maxStakeWanted) + ' SOL'],
+        ['Bond needed for target', fmt(bondNeededForTarget) + ' SOL'],
+        ['Bond shortfall', cappedByBond
+          ? fmt(Math.max(0, bondNeededForTarget - cb)) + ' SOL'
+          : 'None'],
+      ].map(([l, v]) =>
+        `<div class="detail-item"><span>${l}</span><span>${v}</span></div>`
+      ).join('');
+    } else {
+      document.getElementById('stakeCapCard').classList.add('hidden');
+      healthText = `Ideal bond (${fmt(bondIdeal)} SOL) covers ${idealBondEpochs} epochs`;
+      healthClass = 'green';
+    }
+  } else {
+    const bondBal = val('bondBalance');
+    const idealLimit = idealBondPmpe > 0 ? bondBal / (idealBondPmpe / 1000) : 0;
+    const minLimit = minBondPmpe > 0 ? bondBal / (minBondPmpe / 1000) : 0;
+    ratio = bondBal > 0 ? idealLimit / bondBal : 0;
+
+    burnStake = idealLimit;
+    burnBond = bondBal;
+
+    primaryVal = idealLimit;
+    secondaryVal = minLimit;
+
+    document.getElementById('primaryLabel').textContent = 'Max Stake (Ideal Cap)';
+    document.getElementById('primarySub').textContent = `With ${idealBondEpochs}-epoch coverage`;
+    document.getElementById('secondaryLabel').textContent = 'Max Stake (Min Cap)';
+    document.getElementById('secondarySub').textContent = `With ${minBondEpochs}-epoch coverage`;
+    document.getElementById('primaryResult').textContent = fmt(idealLimit) + ' SOL';
+    document.getElementById('secondaryResult').textContent = fmt(minLimit) + ' SOL';
+    document.getElementById('ratioResult').textContent = '1:' + fmt(ratio);
+    document.getElementById('ratioSub').textContent = `1 SOL bond per ${fmt(ratio)} SOL stake`;
+
+    // Hide stake cap card in stake mode (it's already shown as primary/secondary result)
+    document.getElementById('stakeCapCard').classList.add('hidden');
+
+    // Bond health
+    if (bondBal < 0.8 * minBondBalanceSol) {
+      healthText = `Bond too low (< ${(0.8 * minBondBalanceSol).toFixed(1)} SOL) - no stake`;
+      healthClass = 'red';
+    } else if (bondBal < minBondBalanceSol) {
+      healthText = `Bond below minimum (${minBondBalanceSol} SOL) - no growth`;
+      healthClass = 'yellow';
+    } else {
+      healthText = `Bond is healthy (>= ${minBondBalanceSol} SOL minimum)`;
+      healthClass = 'green';
+    }
+  }
+
+  // --- Burn rate calculation ---
+  // Winning validators (totalPmpe >= winningPmpe) pay effParticipatingBidPmpe = winningPmpe - onchainDistributed.
+  // Below-threshold validators pay bondObligationPmpe = bidCpmpe + blockShare + commissionSubsidy.
+  // Commission subsidy = max(0, onchainDistributed_at_bond_comm - onchainDistributed_at_onchain_comm),
+  //   i.e. the extra staker yield the bond must cover when bond comm < on-chain comm.
+  const userTotalPmpe = infShare + mevShare + blockShare + bidCpmpe;
+  const subsidyPmpe   = Math.max(0, onchainDistributed - onchainDistributedForBurn);
+  const bondObligationWithSubsidy = bondObligation + subsidyPmpe;
+
+  let burnObligation, burnBasisLabel;
+  if (samData && samData.winningPmpe > 0) {
+    if (userTotalPmpe >= samData.winningPmpe) {
+      // Winning: effParticipatingBidPmpe = winningPmpe - onchainDistributedForBurn
+      const paidFromBond = Math.max(0, samData.winningPmpe - onchainDistributedForBurn);
+      burnObligation = paidFromBond;
+      let basisLabel = `— ${fmt(burnStake)} SOL stake · Winning: PMPE ${samData.winningPmpe.toFixed(4)} = ${onchainDistributedForBurn.toFixed(4)} on-chain + ${paidFromBond.toFixed(4)} from bond`;
+      if (subsidyPmpe > 0.00001) {
+        basisLabel += ` (incl. ${subsidyPmpe.toFixed(4)} commission subsidy)`;
+      }
+      burnBasisLabel = basisLabel;
+    } else {
+      // Below threshold: bondObligationPmpe = bid + block + commission subsidy
+      burnObligation = bondObligationWithSubsidy;
+      let basisLabel = `— ${fmt(burnStake)} SOL stake · Below-threshold: ${bondObligationWithSubsidy.toFixed(4)} PMPE = ${bidCpmpe.toFixed(4)} bid + ${blockShare.toFixed(4)} block`;
+      if (subsidyPmpe > 0.00001) {
+        basisLabel += ` + ${subsidyPmpe.toFixed(4)} comm. subsidy`;
+      }
+      basisLabel += ` (your PMPE ${userTotalPmpe.toFixed(4)} < winning ${samData.winningPmpe.toFixed(4)})`;
+      burnBasisLabel = basisLabel;
+    }
+  } else {
+    burnObligation = bondObligationWithSubsidy;
+    let basisLabel = `— ${fmt(burnStake)} SOL stake · Bond obligation ${bondObligationWithSubsidy.toFixed(4)} PMPE = ${bidCpmpe.toFixed(4)} bid + ${blockShare.toFixed(4)} block`;
+    if (subsidyPmpe > 0.00001) {
+      basisLabel += ` + ${subsidyPmpe.toFixed(4)} comm. subsidy`;
+    }
+    burnBasisLabel = basisLabel;
+  }
+  const burnPerEpoch = burnStake * burnObligation / 1000;
+  const epochsPerMonth = 15.17; // ~365.25 / (2 * 12.05)
+  const epochsPerYear = 182;
+  const burnPerMonth = burnPerEpoch * epochsPerMonth;
+  const burnPerYear = burnPerEpoch * epochsPerYear;
+  const runwayEpochs = burnPerEpoch > 0 ? burnBond / burnPerEpoch : Infinity;
+  const runwayDays = runwayEpochs * 2; // ~2 days per epoch
+
+  document.getElementById('burnBasis').textContent = burnBasisLabel;
+
+  document.getElementById('burnPerEpoch').textContent = burnPerEpoch > 0 ? fmt(burnPerEpoch) : '0';
+  document.getElementById('burnPerMonth').textContent = burnPerMonth > 0 ? fmt(burnPerMonth) : '0';
+  document.getElementById('burnPerYear').textContent = burnPerYear > 0 ? fmt(burnPerYear) : '0';
+
+  if (isFinite(runwayEpochs) && burnPerEpoch > 0) {
+    document.getElementById('runwayEpochs').textContent = Math.floor(runwayEpochs);
+    document.getElementById('runwayLabel').textContent = `Runway (epochs)`;
+
+    // Runway bar
+    const maxBarEpochs = idealBondEpochs * 1.5; // scale bar relative to ideal
+    const barPct = Math.min(100, (runwayEpochs / maxBarEpochs) * 100);
+    let barClass, barText;
+    if (runwayEpochs >= idealBondEpochs) {
+      barClass = 'green';
+    } else if (runwayEpochs >= minBondEpochs) {
+      barClass = 'yellow';
+    } else {
+      barClass = 'red';
+    }
+    const daysText = runwayDays >= 365 ? (runwayDays / 365).toFixed(1) + ' years' :
+                     runwayDays >= 30 ? (runwayDays / 30).toFixed(1) + ' months' :
+                     Math.floor(runwayDays) + ' days';
+    barText = Math.floor(runwayEpochs) + ' epochs';
+
+    const bar = document.getElementById('runwayBar');
+    bar.style.width = Math.max(barPct, 8) + '%';
+    bar.className = 'runway-bar ' + barClass;
+    document.getElementById('runwayBarText').textContent = barText;
+    document.getElementById('runwayDetail').textContent =
+      `~${daysText} at ${fmt(burnPerEpoch)} SOL/epoch (bond: ${fmt(burnBond)} SOL)`;
+  } else {
+    document.getElementById('runwayEpochs').textContent = burnPerEpoch === 0 ? 'N/A' : '\u221E';
+    const bar = document.getElementById('runwayBar');
+    bar.style.width = '100%';
+    bar.className = 'runway-bar green';
+    document.getElementById('runwayBarText').textContent = burnPerEpoch === 0 ? 'No burn (0 bid)' : 'Infinite';
+    document.getElementById('runwayDetail').textContent =
+      burnPerEpoch === 0 ? 'No bid or block rewards obligation' : '';
+  }
+
+  // Bond health display
+  const bhEl = document.getElementById('bondHealth');
+  bhEl.className = 'bond-health ' + healthClass;
+  bhEl.querySelector('.dot').className = 'dot ' + healthClass;
+  document.getElementById('bondHealthText').textContent = healthText;
+
+  // --- Ranking computation ---
+  updateRanking(inflationPmpe, inflationComm, mevPmpe, mevComm, blockPmpe, blockComm, bidCpmpe);
+
+  // Formula breakdown
+  const grid = document.getElementById('formulaGrid');
+  grid.innerHTML = [
+    ['Inflation share (staker)', infShare.toFixed(6) + ' PMPE'],
+    ['MEV share (staker)', mevShare.toFixed(6) + ' PMPE'],
+    ['Block share (staker)', blockShare.toFixed(6) + ' PMPE'],
+    ['On-chain distributed', onchainDistributed.toFixed(6) + ' PMPE'],
+    ['Static bid (CPMPE)', bidCpmpe.toFixed(6) + ' PMPE'],
+    ['Bond obligation (bid+block)', bondObligation.toFixed(6) + ' PMPE'],
+    samData ? ['Winning PMPE', samData.winningPmpe.toFixed(6) + ' PMPE'] : null,
+    samData ? ['Your total PMPE', userTotalPmpe.toFixed(6) + ' PMPE'] : null,
+    samData ? ['Paid from bond (' + (userTotalPmpe >= samData.winningPmpe ? 'winning' : 'below-threshold') + ')', burnObligation.toFixed(6) + ' PMPE'] : null,
+    ['Expected max eff bid', expectedMaxEffBidPmpe.toFixed(6) + ' PMPE'],
+    ['Ideal bond cost', idealBondPmpe.toFixed(6) + ' PMPE'],
+    ['Min bond cost', minBondPmpe.toFixed(6) + ' PMPE'],
+    ['Ideal ratio', '1 : ' + (idealBondPmpe > 0 ? fmt(1000 / idealBondPmpe) : '--')],
+    ['Min ratio', '1 : ' + (minBondPmpe > 0 ? fmt(1000 / minBondPmpe) : '--')],
+    ['Burn per epoch', burnPerEpoch > 0 ? fmt(burnPerEpoch) + ' SOL' : '0 SOL'],
+    ['Burn per month', burnPerMonth > 0 ? fmt(burnPerMonth) + ' SOL' : '0 SOL'],
+  ].filter(Boolean).map(([label, value]) =>
+    `<div class="formula-item"><span>${label}</span><span>${value}</span></div>`
+  ).join('');
+}
+
+function updateRanking(inflPmpe, inflComm, mevPmpe, mevComm, blockPmpe, blockComm, bidCpmpe) {
+  if (!samData) return;
+
+  // Use full-precision network params so userTotalPmpe is comparable to stored totalPmpe values
+  const net = samData.rawNetworkParams || samData.networkParams;
+  const userTotalPmpe = net.inflationPmpe * (1 - inflComm) + net.mevPmpe * (1 - mevComm) +
+                        net.blockPmpe * (1 - blockComm) + bidCpmpe;
+
+  // Binary search in descending-sorted rankings to find rank
+  const rankings = samData.rankings;
+  let lo = 0, hi = rankings.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (rankings[mid].totalPmpe > userTotalPmpe) lo = mid + 1;
+    else hi = mid;
+  }
+  const rank = lo + 1; // 1-indexed
+  const total = rankings.length;
+  const displayTotal = samData.totalFundedBonds || total;
+
+  // Update display
+  document.getElementById('userTotalPmpe').textContent = userTotalPmpe.toFixed(4);
+  document.getElementById('winningPmpeDisplay').textContent = samData.winningPmpe.toFixed(4);
+
+  // Progress bar: rank position (1 = leftmost/best, total = rightmost)
+  const barPct = Math.max(5, Math.min(100, (1 - (rank - 1) / total) * 100));
+  const bar = document.getElementById('rankBar');
+  const gap = samData.winningPmpe - userTotalPmpe;
+
+  let barClass, verdictClass, verdictText;
+  if (gap <= 0) {
+    // Above winning threshold
+    barClass = 'green';
+    verdictClass = 'above';
+    const rankAmongWinners = Math.min(rank, samData.validatorsWithStake);
+    verdictText = `Above winning threshold by ${Math.abs(gap).toFixed(4)} PMPE \u00B7 Rank #${rankAmongWinners} among ${samData.validatorsWithStake} stake recipients`;
+  } else if (gap <= 0.005) {
+    // Close to threshold
+    barClass = 'yellow';
+    verdictClass = 'close';
+    verdictText = `Just below threshold by ${gap.toFixed(4)} PMPE \u2014 Increase bid by +${gap.toFixed(4)} CPMPE to compete`;
+  } else {
+    // Below threshold
+    barClass = 'red';
+    verdictClass = 'below';
+    verdictText = `Below winning threshold by ${gap.toFixed(4)} PMPE \u2014 Increase bid by +${gap.toFixed(4)} CPMPE to compete`;
+  }
+
+  bar.style.width = barPct + '%';
+  bar.className = 'rank-bar ' + barClass;
+  document.getElementById('rankBarText').textContent = `Rank #${rank} / ${displayTotal} bonds`;
+
+  const verdict = document.getElementById('rankingVerdict');
+  verdict.className = 'ranking-verdict ' + verdictClass;
+  document.getElementById('rankingVerdictText').textContent = verdictText;
+
+  const samTvlDisplay = samData.samTvlSol >= 1e6
+    ? (samData.samTvlSol / 1e6).toFixed(1) + 'M'
+    : fmt(samData.samTvlSol);
+  document.getElementById('rankingFooter').textContent =
+    `Ranked among ${displayTotal} bond validators \u00B7 ${samData.validatorsWithStake} currently receive SAM stake \u00B7 TVL: ${samTvlDisplay} SOL`;
+}
+
+// --- Validator Lookup ---
+let lookupDebounce = null;
+
+function onVoteAccountInput() {
+  const addr = document.getElementById('voteAccount').value.trim();
+  clearTimeout(lookupDebounce);
+  if (addr.length === 0) {
+    document.getElementById('lookupStatus').innerHTML = '';
+    currentOnchainComms = { inflationComm: null, mevComm: null };
+    return;
+  }
+  // Auto-trigger once address looks like a full base58 pubkey (32–44 chars)
+  if (addr.length >= 32 && addr.length <= 44) {
+    lookupDebounce = setTimeout(lookupValidator, 450);
+  }
+}
+
+function lookupValidator() {
+  clearTimeout(lookupDebounce);
+  const addr = document.getElementById('voteAccount').value.trim();
+  if (!addr) return;
+
+  if (!samData) {
+    setLookupMsg('warn', 'SAM data is still loading — try again in a moment.');
+    return;
+  }
+
+  const v = samData.validatorMap && samData.validatorMap[addr];
+
+  if (!v) {
+    setLookupMsg('info',
+      'This validator has no SAM bond — fields need to be filled manually.');
+    return;
+  }
+
+  if (v.bidCpmpe == null) {
+    setLookupMsg('info',
+      'This validator has no SAM bond configured — fields need to be filled manually.');
+    return;
+  }
+
+  // Auto-fill validator settings
+  document.getElementById('inflationComm').value = v.inflationCommission.toFixed(1);
+  document.getElementById('mevComm').value      = v.mevCommission.toFixed(1);
+  document.getElementById('blockComm').value    = v.blockCommission.toFixed(1);
+  document.getElementById('bidCpmpe').value     = v.bidCpmpe;
+  if (v.maxStakeWanted > 0)
+    document.getElementById('maxStakeWanted').value = v.maxStakeWanted;
+  if (v.bondBalanceSol > 0)
+    document.getElementById('currentBond').value = v.bondBalanceSol.toFixed(6);
+
+  // Store on-chain commissions so burn rate can account for commission subsidy
+  currentOnchainComms = {
+    inflationComm: v.inflationCommissionOnchain / 100,
+    mevComm:       v.mevCommissionOnchain       / 100,
+  };
+
+  const bondDisplay = v.bondBalanceSol > 0 ? fmt(v.bondBalanceSol) + ' SOL bond' : 'no bond balance';
+  setLookupMsg('success',
+    `Fields auto-filled \u00B7 Bid: ${v.bidCpmpe} CPMPE \u00B7 Inflation: ${v.inflationCommission.toFixed(0)}% \u00B7 MEV: ${v.mevCommission.toFixed(0)}% \u00B7 Block: ${v.blockCommission.toFixed(0)}% \u00B7 ${bondDisplay}`);
+
+  if (mode !== 'bond') setMode('bond');
+  calculate();
+}
+
+function setLookupMsg(type, text) {
+  const classes = { success: 'lookup-success', info: 'lookup-info', warn: 'lookup-warn' };
+  document.getElementById('lookupStatus').innerHTML =
+    `<div class="lookup-msg ${classes[type]}">${text}</div>`;
+}
+
+// Initial calculation + data fetch
+calculate();
+initData();
+</script>
+</body>
+</html>
